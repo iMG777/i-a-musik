@@ -1,0 +1,14 @@
+{
+  "name": "siteiamusic",
+  "version": "1.0.0",
+  "main": "api/generate.js",
+  "type": "module",
+  "scripts": {
+    "start": "node api/generate.js",
+    "build": "echo 'No build step needed'"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
+  }
+}
