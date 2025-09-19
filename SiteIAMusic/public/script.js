@@ -35,7 +35,6 @@ generateBtn.addEventListener("click", async () => {
   }
 });
 
-// Função de polling
 async function pollAudio(taskId) {
   try {
     const res = await fetch(`/api/status?task_id=${taskId}`);

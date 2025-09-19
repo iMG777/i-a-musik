@@ -8,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 
-// Função para checar status da música
 async function checkTaskStatus(taskId) {
   const url = `https://api.suno.ai/v1/music/status/${taskId}`;
   const response = await fetch(url, {
@@ -31,7 +30,6 @@ const server = http.createServer(async (req, res) => {
       try {
         const { prompt } = JSON.parse(body);
 
-        // Chamada inicial para gerar música
         const response = await fetch("https://api.suno.ai/v1/music/generate", {
           method: "POST",
           headers: {
@@ -55,13 +53,13 @@ const server = http.createServer(async (req, res) => {
 
         const data = await response.json();
 
-        // Retorna task_id se áudio ainda não estiver pronto
+        // Retorna task_id se áudio não estiver pronto
         if (data.task_id && !data.audio_url) {
           res.writeHead(200, { "Content-Type": "application/json" });
           return res.end(JSON.stringify({ task_id: data.task_id, message: "Música em processamento, verifique o status depois." }));
         }
 
-        // Se já retornou audio_url
+        // Se já tem audio_url
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(data));
 
