@@ -4,53 +4,48 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
 
-// Caminhos absolutos
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer(async (req, res) => {
-  // Rota da API
+
+  // Rota API
   if (req.method === "POST" && req.url === "/api/generate") {
     let body = "";
-    req.on("data", chunk => (body += chunk));
+    req.on("data", chunk => body += chunk);
     req.on("end", async () => {
       try {
         const { prompt } = JSON.parse(body);
 
-        if (!prompt || !prompt.trim()) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ error: "Prompt não pode estar vazio." }));
+        const response = await fetch("https://api.suno.ai/v1/music/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.SUNO_API_KEY}`
+          },
+          body: JSON.stringify({
+            prompt,
+            model: "V4",
+            format: "mp3",
+            duration: 60
+          })
+        });
+
+        // Se não for 200-OK, retorna HTML de erro
+        if (!response.ok) {
+          const text = await response.text();
+          console.error("Erro Suno API:", text);
+          res.writeHead(response.status, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ error: text }));
         }
 
-        const response = await fetch("https://api.suno.ai/v1/music/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.SUNO_API_KEY}`
-        },
-        body: JSON.stringify({
-          prompt,
-          model: "V4",
-          format: "mp3",
-          duration: 60
-        })
-      });
+        // Se OK, parse normal
+        const data = await response.json();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(data));
 
-      // Se não for 200-OK, retorna o texto (HTML de erro) para debug
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("Erro Suno API:", text);
-        res.writeHead(response.status, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ error: text }));
-      }
-
-      // Se OK, parse normal
-      const data = await response.json();
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(data));
-      
       } catch (err) {
         console.error("Erro interno:", err);
         res.writeHead(500, { "Content-Type": "application/json" });
