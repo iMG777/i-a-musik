@@ -1,8 +1,9 @@
-document.getElementById("generateBtn").addEventListener("click", async () => {
-  const desc = document.getElementById("desc").value;
-  const resultDiv = document.getElementById("result");
+const resultDiv = document.getElementById("result");
+const generateBtn = document.getElementById("generateBtn");
+const desc = document.getElementById("desc");
 
-  if (!desc.trim()) {
+generateBtn.addEventListener("click", async () => {
+  if (!desc.value.trim()) {
     resultDiv.innerHTML = "⚠️ Escreva uma descrição primeiro!";
     return;
   }
@@ -13,21 +14,17 @@ document.getElementById("generateBtn").addEventListener("click", async () => {
     const response = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: desc })
+      body: JSON.stringify({ prompt: desc.value })
     });
 
-    if (!response.ok) throw new Error("Erro ao chamar a API");
-
     const data = await response.json();
-    console.log("Resposta da API Suno:", data);
+    console.log("Resposta API:", data);
 
     if (data.audio_url) {
-      resultDiv.innerHTML = `
-        ✅ Música gerada!<br>
-        <audio controls src="${data.audio_url}"></audio>
-      `;
+      resultDiv.innerHTML = `<audio controls src="${data.audio_url}"></audio>`;
     } else if (data.task_id) {
-      resultDiv.innerHTML = `🔄 A música ainda está sendo processada. Tente novamente em alguns segundos. (task_id: ${data.task_id})`;
+      resultDiv.innerHTML = `🔄 Música em processamento. Aguardando...`;
+      pollAudio(data.task_id);
     } else {
       resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
     }
@@ -37,3 +34,19 @@ document.getElementById("generateBtn").addEventListener("click", async () => {
     resultDiv.innerHTML = "❌ Erro ao gerar música.";
   }
 });
+
+// Função de polling
+async function pollAudio(taskId) {
+  try {
+    const res = await fetch(`/api/status?task_id=${taskId}`);
+    const data = await res.json();
+
+    if (data.audio_url) {
+      resultDiv.innerHTML = `<audio controls src="${data.audio_url}"></audio>`;
+    } else {
+      setTimeout(() => pollAudio(taskId), 2000); // tenta novamente a cada 2s
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}

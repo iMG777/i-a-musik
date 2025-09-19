@@ -8,6 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3000;
 
+// Função para checar status da música
 async function checkTaskStatus(taskId) {
   const url = `https://api.suno.ai/v1/music/status/${taskId}`;
   const response = await fetch(url, {
@@ -22,7 +23,7 @@ async function checkTaskStatus(taskId) {
 
 const server = http.createServer(async (req, res) => {
 
-  // Rota API
+  // API generate
   if (req.method === "POST" && req.url === "/api/generate") {
     let body = "";
     req.on("data", chunk => body += chunk);
@@ -54,21 +55,13 @@ const server = http.createServer(async (req, res) => {
 
         const data = await response.json();
 
-        // Se a API retornou task_id, aguardamos o áudio
+        // Retorna task_id se áudio ainda não estiver pronto
         if (data.task_id && !data.audio_url) {
-          let audioData;
-          for (let i = 0; i < 20; i++) { // tenta 20 vezes ~ 20-30s
-            await new Promise(r => setTimeout(r, 1500)); // espera 1.5s
-            audioData = await checkTaskStatus(data.task_id);
-            if (audioData.audio_url) break;
-          }
-          if (!audioData.audio_url) {
-            return res.end(JSON.stringify({ task_id: data.task_id, message: "A música ainda está sendo processada, tente novamente em alguns segundos." }));
-          }
-          return res.end(JSON.stringify(audioData));
+          res.writeHead(200, { "Content-Type": "application/json" });
+          return res.end(JSON.stringify({ task_id: data.task_id, message: "Música em processamento, verifique o status depois." }));
         }
 
-        // Se já retornou audio_url direto
+        // Se já retornou audio_url
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(data));
 
@@ -81,7 +74,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Servir arquivos estáticos da pasta public
+  // API status (polling)
+  if (req.method === "GET" && req.url.startsWith("/api/status")) {
+    const urlParams = new URL(req.url, `http://${req.headers.host}`);
+    const taskId = urlParams.searchParams.get("task_id");
+    if (!taskId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: "task_id não fornecido" }));
+    }
+    try {
+      const data = await checkTaskStatus(taskId);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(data));
+    } catch (err) {
+      console.error(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Servir arquivos estáticos
   let filePath = path.join(__dirname, "public", req.url === "/" ? "index.html" : req.url);
   let ext = path.extname(filePath).toLowerCase();
 
