@@ -25,23 +25,32 @@ const server = http.createServer(async (req, res) => {
         }
 
         const response = await fetch("https://api.suno.ai/v1/music/generate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.SUNO_API_KEY}`
-          },
-          body: JSON.stringify({
-            prompt,
-            model: "V4",
-            format: "mp3",
-            duration: 60
-          })
-        });
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.SUNO_API_KEY}`
+        },
+        body: JSON.stringify({
+          prompt,
+          model: "V4",
+          format: "mp3",
+          duration: 60
+        })
+      });
 
-        const data = await response.json();
+      // Se não for 200-OK, retorna o texto (HTML de erro) para debug
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Erro Suno API:", text);
+        res.writeHead(response.status, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ error: text }));
+      }
 
-        res.writeHead(response.ok ? 200 : response.status, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(data));
+      // Se OK, parse normal
+      const data = await response.json();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(data));
+      
       } catch (err) {
         console.error("Erro interno:", err);
         res.writeHead(500, { "Content-Type": "application/json" });
