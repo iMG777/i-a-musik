@@ -1,9 +1,10 @@
-const resultDiv = document.getElementById("result");
 const generateBtn = document.getElementById("generateBtn");
-const desc = document.getElementById("desc");
+const descInput = document.getElementById("desc");
+const resultDiv = document.getElementById("result");
 
 generateBtn.addEventListener("click", async () => {
-  if (!desc.value.trim()) {
+  const prompt = descInput.value.trim();
+  if (!prompt) {
     resultDiv.innerHTML = "⚠️ Escreva uma descrição primeiro!";
     return;
   }
@@ -11,22 +12,32 @@ generateBtn.addEventListener("click", async () => {
   resultDiv.innerHTML = "⏳ Gerando música...";
 
   try {
+    // Chama o endpoint do seu servidor
     const response = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: desc.value })
+      body: JSON.stringify({ prompt })
     });
 
     const data = await response.json();
     console.log("Resposta API:", data);
 
-    if (data.audio_url) {
-      resultDiv.innerHTML = `<audio controls src="${data.audio_url}"></audio>`;
-    } else if (data.task_id) {
-      resultDiv.innerHTML = `🔄 Música em processamento. Aguardando...`;
-      pollAudio(data.task_id);
-    } else {
-      resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+    if (data.error) {
+      resultDiv.innerHTML = `❌ Erro: ${data.error}`;
+      return;
+    }
+
+    // Se o áudio ainda não estiver pronto, faz polling
+    if (data.task_id && !data.audio_url) {
+      resultDiv.innerHTML = `⏳ Música em processamento...`;
+      const audioData = await pollTask(data.task_id);
+      if (audioData.audio_url) {
+        showAudio(audioData.audio_url);
+      } else {
+        resultDiv.innerHTML = `❌ Erro ao gerar música.`;
+      }
+    } else if (data.audio_url) {
+      showAudio(data.audio_url);
     }
 
   } catch (err) {
@@ -35,17 +46,26 @@ generateBtn.addEventListener("click", async () => {
   }
 });
 
-async function pollAudio(taskId) {
-  try {
-    const res = await fetch(`/api/status?task_id=${taskId}`);
-    const data = await res.json();
-
-    if (data.audio_url) {
-      resultDiv.innerHTML = `<audio controls src="${data.audio_url}"></audio>`;
-    } else {
-      setTimeout(() => pollAudio(taskId), 2000); // tenta novamente a cada 2s
+async function pollTask(taskId) {
+  const maxRetries = 20;
+  const interval = 5000; // 5 segundos
+  for (let i = 0; i < maxRetries; i++) {
+    await new Promise(r => setTimeout(r, interval));
+    try {
+      const statusResp = await fetch(`/api/status?task_id=${taskId}`);
+      const statusData = await statusResp.json();
+      console.log("Status polling:", statusData);
+      if (statusData.audio_url) return statusData;
+    } catch (err) {
+      console.error("Erro no polling:", err);
     }
-  } catch (err) {
-    console.error(err);
   }
+  return null;
+}
+
+function showAudio(url) {
+  resultDiv.innerHTML = `
+    ✅ Música gerada!<br>
+    <audio controls src="${url}"></audio>
+  `;
 }

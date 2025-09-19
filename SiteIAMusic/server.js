@@ -6,7 +6,9 @@ import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+
+console.log("Servidor iniciando...");
 
 async function checkTaskStatus(taskId) {
   const url = `https://api.suno.ai/v1/music/status/${taskId}`;
@@ -22,13 +24,15 @@ async function checkTaskStatus(taskId) {
 
 const server = http.createServer(async (req, res) => {
 
-  // API generate
+  // ================== API Generate ==================
   if (req.method === "POST" && req.url === "/api/generate") {
     let body = "";
     req.on("data", chunk => body += chunk);
     req.on("end", async () => {
       try {
         const { prompt } = JSON.parse(body);
+
+        console.log("Chamando Suno API com prompt:", prompt);
 
         const response = await fetch("https://api.suno.ai/v1/music/generate", {
           method: "POST",
@@ -72,7 +76,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API status (polling)
+  // ================== API Status ==================
   if (req.method === "GET" && req.url.startsWith("/api/status")) {
     const urlParams = new URL(req.url, `http://${req.headers.host}`);
     const taskId = urlParams.searchParams.get("task_id");
@@ -81,6 +85,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(JSON.stringify({ error: "task_id não fornecido" }));
     }
     try {
+      console.log("Verificando status do task_id:", taskId);
       const data = await checkTaskStatus(taskId);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
@@ -92,9 +97,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Servir arquivos estáticos
+  // ================== Arquivos estáticos ==================
   let filePath = path.join(__dirname, "public", req.url === "/" ? "index.html" : req.url);
-  let ext = path.extname(filePath).toLowerCase();
+  const ext = path.extname(filePath).toLowerCase();
 
   const mimeTypes = {
     ".html": "text/html",
@@ -109,11 +114,10 @@ const server = http.createServer(async (req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Arquivo não encontrado");
-    } else {
-      res.writeHead(200, { "Content-Type": mimeTypes[ext] || "text/plain" });
-      res.end(content);
+      return res.end("Arquivo não encontrado");
     }
+    res.writeHead(200, { "Content-Type": mimeTypes[ext] || "text/plain" });
+    res.end(content);
   });
 });
 
