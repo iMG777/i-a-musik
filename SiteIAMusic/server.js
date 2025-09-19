@@ -6,8 +6,19 @@ import fetch from "node-fetch";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const PORT = process.env.PORT || 3000;
+
+async function checkTaskStatus(taskId) {
+  const url = `https://api.suno.ai/v1/music/status/${taskId}`;
+  const response = await fetch(url, {
+    headers: { "Authorization": `Bearer ${process.env.SUNO_API_KEY}` }
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Erro Suno API status: ${text}`);
+  }
+  return response.json();
+}
 
 const server = http.createServer(async (req, res) => {
 
@@ -19,6 +30,7 @@ const server = http.createServer(async (req, res) => {
       try {
         const { prompt } = JSON.parse(body);
 
+        // Chamada inicial para gerar música
         const response = await fetch("https://api.suno.ai/v1/music/generate", {
           method: "POST",
           headers: {
@@ -33,7 +45,6 @@ const server = http.createServer(async (req, res) => {
           })
         });
 
-        // Se não for 200-OK, retorna HTML de erro
         if (!response.ok) {
           const text = await response.text();
           console.error("Erro Suno API:", text);
@@ -41,8 +52,23 @@ const server = http.createServer(async (req, res) => {
           return res.end(JSON.stringify({ error: text }));
         }
 
-        // Se OK, parse normal
         const data = await response.json();
+
+        // Se a API retornou task_id, aguardamos o áudio
+        if (data.task_id && !data.audio_url) {
+          let audioData;
+          for (let i = 0; i < 20; i++) { // tenta 20 vezes ~ 20-30s
+            await new Promise(r => setTimeout(r, 1500)); // espera 1.5s
+            audioData = await checkTaskStatus(data.task_id);
+            if (audioData.audio_url) break;
+          }
+          if (!audioData.audio_url) {
+            return res.end(JSON.stringify({ task_id: data.task_id, message: "A música ainda está sendo processada, tente novamente em alguns segundos." }));
+          }
+          return res.end(JSON.stringify(audioData));
+        }
+
+        // Se já retornou audio_url direto
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(data));
 

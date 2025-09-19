@@ -10,28 +10,25 @@ document.getElementById("generateBtn").addEventListener("click", async () => {
   resultDiv.innerHTML = "⏳ Gerando música...";
 
   try {
-    // Sempre usa caminho relativo → funciona no localhost e no Render
     const response = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: desc })
     });
 
-    if (!response.ok) {
-      throw new Error("Erro ao chamar a API");
-    }
+    if (!response.ok) throw new Error("Erro ao chamar a API");
 
     const data = await response.json();
     console.log("Resposta da API Suno:", data);
 
-    // Exibe player se vier a URL do áudio
     if (data.audio_url) {
       resultDiv.innerHTML = `
         ✅ Música gerada!<br>
         <audio controls src="${data.audio_url}"></audio>
       `;
+    } else if (data.task_id) {
+      resultDiv.innerHTML = `🔄 A música ainda está sendo processada. Tente novamente em alguns segundos. (task_id: ${data.task_id})`;
     } else {
-      // Mostra JSON de fallback (ex: task_id ou erro)
       resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
     }
 
